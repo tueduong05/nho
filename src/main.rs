@@ -1,7 +1,11 @@
 use tokio::{io, net::TcpListener};
 
-use crate::protocol::{Command, Connection, Response};
+use crate::{
+    command::Command,
+    protocol::{Connection, Response},
+};
 
+mod command;
 mod protocol;
 mod storage;
 
@@ -30,8 +34,8 @@ async fn main() -> io::Result<()> {
                                 Some(value) => Response::Data(value),
                                 None => Response::Nil,
                             },
-                            Command::Set(key, value) => {
-                                storage::set(&store, key, value);
+                            Command::Set(key, value, ttl) => {
+                                storage::set(&store, key, value, ttl);
                                 Response::Ok
                             }
                             Command::Unknown => Response::Error("Unknown command".to_string()),

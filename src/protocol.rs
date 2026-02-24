@@ -6,29 +6,7 @@ use tokio::{
     net::TcpStream,
 };
 
-pub enum Command {
-    Ping,
-    Get(Bytes),
-    Set(Bytes, Bytes),
-    Unknown,
-}
-
-impl Command {
-    fn from_args(args: Vec<Bytes>) -> Self {
-        if args.is_empty() {
-            return Command::Unknown;
-        }
-
-        let command_name = String::from_utf8_lossy(&args[0]).to_lowercase();
-
-        match command_name.as_str() {
-            "ping" => Command::Ping,
-            "get" if args.len() == 2 => Command::Get(args[1].clone()),
-            "set" if args.len() == 3 => Command::Set(args[1].clone(), args[2].clone()),
-            _ => Command::Unknown,
-        }
-    }
-}
+use crate::command::Command;
 
 pub enum Response {
     Ok,

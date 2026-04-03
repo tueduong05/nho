@@ -1,11 +1,11 @@
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 
 use bytes::Bytes;
 
 pub enum Command {
     Ping,
     Get(Bytes),
-    Set(Bytes, Bytes, Option<Duration>),
+    Set(Bytes, Bytes, Option<StdDuration>),
     Unknown,
 }
 
@@ -34,10 +34,10 @@ impl Command {
 
                     match (option.as_str(), amount) {
                         ("ex", Some(sec)) => {
-                            Command::Set(key, value, Some(Duration::from_secs(sec)))
+                            Command::Set(key, value, Some(StdDuration::from_secs(sec)))
                         }
                         ("px", Some(ms)) => {
-                            Command::Set(key, value, Some(Duration::from_millis(ms)))
+                            Command::Set(key, value, Some(StdDuration::from_millis(ms)))
                         }
                         _ => Command::Unknown,
                     }

@@ -2,8 +2,8 @@ use std::io::Cursor;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::{
-    io::{self, AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
+    io::{self as TokioIo, AsyncReadExt, AsyncWriteExt},
+    net::TcpStream as TokioTcpStream,
 };
 
 use crate::command::Command;
@@ -37,13 +37,13 @@ impl Response {
 }
 
 pub struct Connection {
-    stream: TcpStream,
+    stream: TokioTcpStream,
     buffer: BytesMut,
     write_buffer: BytesMut,
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream) -> Self {
+    pub fn new(stream: TokioTcpStream) -> Self {
         Self {
             stream,
             buffer: BytesMut::with_capacity(65_536),
@@ -51,7 +51,7 @@ impl Connection {
         }
     }
 
-    pub async fn read_frame(&mut self) -> io::Result<Option<Command>> {
+    pub async fn read_frame(&mut self) -> TokioIo::Result<Option<Command>> {
         loop {
             if let Some(command) = self.parse_frame()? {
                 return Ok(Some(command));
@@ -65,8 +65,8 @@ impl Connection {
                 return if self.buffer.is_empty() {
                     Ok(None)
                 } else {
-                    Err(io::Error::new(
-                        io::ErrorKind::ConnectionReset,
+                    Err(TokioIo::Error::new(
+                        TokioIo::ErrorKind::ConnectionReset,
                         "Connection reset by peer mid-frame",
                     ))
                 };
@@ -78,7 +78,7 @@ impl Connection {
         response.serialize(&mut self.write_buffer);
     }
 
-    pub async fn flush(&mut self) -> io::Result<()> {
+    pub async fn flush(&mut self) -> TokioIo::Result<()> {
         if !self.write_buffer.is_empty() {
             self.stream.write_all(&self.write_buffer).await?;
             self.write_buffer.clear();
@@ -86,7 +86,7 @@ impl Connection {
         self.stream.flush().await
     }
 
-    fn parse_frame(&mut self) -> io::Result<Option<Command>> {
+    fn parse_frame(&mut self) -> TokioIo::Result<Option<Command>> {
         let mut cursor = Cursor::new(&self.buffer[..]);
 
         if !cursor.has_remaining() {
@@ -94,8 +94,8 @@ impl Connection {
         }
 
         if cursor.get_u8() != b'*' {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
+            return Err(TokioIo::Error::new(
+                TokioIo::ErrorKind::InvalidData,
                 "Expected array prefix '*'",
             ));
         }
@@ -113,8 +113,8 @@ impl Connection {
             }
 
             if cursor.get_u8() != b'$' {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
+                return Err(TokioIo::Error::new(
+                    TokioIo::ErrorKind::InvalidData,
                     "Expected bulk string prefix '$'",
                 ));
             }
@@ -132,8 +132,8 @@ impl Connection {
             }
 
             if &cursor.get_ref()[end..end + 2] != b"\r\n" {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
+                return Err(TokioIo::Error::new(
+                    TokioIo::ErrorKind::InvalidData,
                     "Missing CRLF terminator",
                 ));
             }
@@ -150,7 +150,7 @@ impl Connection {
         Ok(Some(Command::from_args(args)))
     }
 
-    fn read_line(&self, cursor: &mut Cursor<&[u8]>) -> io::Result<Option<Vec<u8>>> {
+    fn read_line(&self, cursor: &mut Cursor<&[u8]>) -> TokioIo::Result<Option<Vec<u8>>> {
         let start = cursor.position() as usize;
         let bytes = &cursor.get_ref()[start..];
 
@@ -161,8 +161,8 @@ impl Connection {
 
                 return Ok(Some(line));
             } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
+                return Err(TokioIo::Error::new(
+                    TokioIo::ErrorKind::InvalidData,
                     "Invalid line terminator (lone LF)",
                 ));
             }
@@ -171,10 +171,14 @@ impl Connection {
         Ok(None)
     }
 
-    fn parse_number(&self, bytes: &[u8]) -> io::Result<usize> {
+    fn parse_number(&self, bytes: &[u8]) -> TokioIo::Result<usize> {
         str::from_utf8(bytes)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8 sequence"))?
+            .map_err(|_| {
+                TokioIo::Error::new(TokioIo::ErrorKind::InvalidData, "Invalid UTF-8 sequence")
+            })?
             .parse::<usize>()
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid number format"))
+            .map_err(|_| {
+                TokioIo::Error::new(TokioIo::ErrorKind::InvalidData, "Invalid number format")
+            })
     }
 }

@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 
-use tokio::{io, net::TcpListener};
+use tokio::{io as TokioIo, net::TcpListener as TokioTcpListener};
 use tracing::{error, info};
 
 use crate::{
@@ -13,14 +13,14 @@ mod protocol;
 mod storage;
 
 #[tokio::main]
-async fn main() -> io::Result<()> {
+async fn main() -> TokioIo::Result<()> {
     tracing_subscriber::fmt::init();
 
     let store = storage::new_store();
 
-    storage::start_cleanup_worker(store.clone(), Duration::from_secs(300)).await;
+    storage::start_cleanup_worker(store.clone(), StdDuration::from_secs(300)).await;
 
-    let listener = TcpListener::bind("0.0.0.0:6379").await?;
+    let listener = TokioTcpListener::bind("0.0.0.0:6379").await?;
     info!("Listening on 0.0.0.0:6379");
 
     loop {

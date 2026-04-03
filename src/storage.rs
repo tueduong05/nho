@@ -1,17 +1,18 @@
 use std::{
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration as StdDuration, Instant as StdInstant},
 };
 
 use tracing::info;
 
 use bytes::Bytes;
 use dashmap::DashMap;
+use tokio::time as TokioTime;
 
 #[derive(Clone)]
 pub struct Entry {
     value: Bytes,
-    expires_at: Option<Instant>,
+    expires_at: Option<StdInstant>,
 }
 
 pub type Store = Arc<DashMap<Bytes, Entry>>;
@@ -20,8 +21,8 @@ pub fn new_store() -> Store {
     Arc::new(DashMap::new())
 }
 
-pub fn set(store: &Store, key: Bytes, value: Bytes, ttl: Option<Duration>) {
-    let expires_at = ttl.map(|duration| Instant::now() + duration);
+pub fn set(store: &Store, key: Bytes, value: Bytes, ttl: Option<StdDuration>) {
+    let expires_at = ttl.map(|duration| StdInstant::now() + duration);
     store.insert(key, Entry { value, expires_at });
 }
 
@@ -29,7 +30,7 @@ pub fn get(store: &Store, key: &Bytes) -> Option<Bytes> {
     let entry = store.get(key)?;
 
     if let Some(expiry) = entry.expires_at {
-        if Instant::now() > expiry {
+        if StdInstant::now() > expiry {
             drop(entry);
             store.remove(key);
             return None;
@@ -39,9 +40,9 @@ pub fn get(store: &Store, key: &Bytes) -> Option<Bytes> {
     Some(entry.value().value.clone())
 }
 
-pub async fn start_cleanup_worker(store: Store, interval: Duration) {
+pub async fn start_cleanup_worker(store: Store, interval: StdDuration) {
     tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(interval);
+        let mut ticker = TokioTime::interval(interval);
         loop {
             ticker.tick().await;
             cleanup_expired(&store);
@@ -50,7 +51,7 @@ pub async fn start_cleanup_worker(store: Store, interval: Duration) {
 }
 
 pub fn cleanup_expired(store: &Store) {
-    let now = Instant::now();
+    let now = StdInstant::now();
     let target_removals = 100;
     let mut removed = 0;
 

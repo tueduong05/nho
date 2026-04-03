@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use tokio::{io, net::TcpListener};
+use tracing::{error, info};
 
 use crate::{
     command::Command,
@@ -11,14 +14,18 @@ mod storage;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let store = storage::new_store();
 
+    storage::start_cleanup_worker(store.clone(), Duration::from_secs(300)).await;
+
     let listener = TcpListener::bind("0.0.0.0:6379").await?;
-    println!("Listening on 0.0.0.0:6379");
+    info!("Listening on 0.0.0.0:6379");
 
     loop {
         let (socket, address) = listener.accept().await?;
-        println!("New connection from: {}", address);
+        info!("New connection from: {}", address);
 
         let store = store.clone();
 
@@ -44,16 +51,15 @@ async fn main() -> io::Result<()> {
                         connection.write_response(response);
                     }
                     Ok(None) => {
-                        println!("Connection closed by client: {}", address);
+                        info!("Connection closed by client: {}", address);
                         break;
                     }
                     Err(e) => {
-                        eprintln!("Error handling client {}: {}", address, e);
+                        error!("Error handling client {}: {}", address, e);
                         break;
                     }
                 }
             }
-
             let _ = connection.flush().await;
         });
     }

@@ -9,6 +9,7 @@ A minimalist, high-performance Redis-compatible server built in Rust.
 - **RESP Protocol Support**: Native implementation of the Redis Serialization Protocol.
 - **Memory Efficient**: Zero-copy byte management and optimized buffer handling.
 - **Key Expiration**: Built-in TTL support for automatic data eviction.
+- **Automatic Cleanup Worker**: Background task periodically removes expired keys to keep memory usage low.
 
 ## 🛠 Supported Commands
 

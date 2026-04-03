@@ -3,6 +3,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use tracing::info;
+
 use bytes::Bytes;
 use dashmap::DashMap;
 
@@ -35,4 +37,39 @@ pub fn get(store: &Store, key: &Bytes) -> Option<Bytes> {
     }
 
     Some(entry.value().value.clone())
+}
+
+pub async fn start_cleanup_worker(store: Store, interval: Duration) {
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(interval);
+        loop {
+            ticker.tick().await;
+            cleanup_expired(&store);
+        }
+    });
+}
+
+pub fn cleanup_expired(store: &Store) {
+    let now = Instant::now();
+    let target_removals = 100;
+    let mut removed = 0;
+
+    for entry_ref in store.iter() {
+        if let Some(expires_at) = entry_ref.expires_at {
+            if now > expires_at {
+                let key = entry_ref.key().clone();
+                drop(entry_ref);
+                store.remove(&key);
+                removed += 1;
+
+                if removed >= target_removals {
+                    break;
+                }
+            }
+        }
+    }
+
+    if removed > 0 {
+        info!("Cleaned {} expired entries", removed);
+    }
 }

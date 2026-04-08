@@ -1,6 +1,6 @@
 use std::time::Duration as StdDuration;
 
-use tokio::{io as TokioIo, net::TcpListener as TokioTcpListener};
+use tokio::{io as TokioIo, net::TcpListener as TokioTcpListener, time as TokioTime};
 use tracing::{error, info};
 
 use crate::{
@@ -33,8 +33,14 @@ async fn main() -> TokioIo::Result<()> {
             let mut connection = Connection::new(socket);
 
             loop {
-                match connection.read_frame().await {
-                    Ok(Some(command)) => {
+                let read_result = TokioTime::timeout(
+                    StdDuration::from_secs(30),
+                    connection.read_frame(),
+                )
+                .await;
+
+                match read_result {
+                    Ok(Ok(Some(command))) => {
                         let response = match command {
                             Command::Ping => Response::Ok,
                             Command::Get(key) => match storage::get(&store, &key) {
@@ -50,12 +56,16 @@ async fn main() -> TokioIo::Result<()> {
 
                         connection.write_response(response);
                     }
-                    Ok(None) => {
+                    Ok(Ok(None)) => {
                         info!("Connection closed by client: {}", address);
                         break;
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         error!("Error handling client {}: {}", address, e);
+                        break;
+                    }
+                    Err(_) => {
+                        error!("TCP timeout for client {}: no data received within 30s", address);
                         break;
                     }
                 }
